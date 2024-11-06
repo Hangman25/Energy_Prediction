@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weather App</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #89f7fe, #66a6ff);
+            color: #333;
+            overflow: auto;
+        }
+
+        .container {
+            text-align: center;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+            width: 95%;
+            max-width: 1200px;
+            position: relative;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        .city-inputs-container {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .city-input-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        input[type="text"] {
+            padding: 10px;
+            width: 150px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            outline: none;
+            font-size: 16px;
+        }
+
+        button {
+            padding: 10px 15px;
+            border: none;
+            background: #66a6ff;
+            color: white;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+
+        button:hover {
+            background: #89f7fe;
+        }
+
+        .comparison-table-container {
+            margin-top: 20px;
+            overflow-x: auto; /* Enables horizontal scroll */
+            max-width: 100%;
+            white-space: nowrap;
+            padding: 10px;
+            background: #f8fafc; /* Light background */
+            border-radius: 8px; /* Rounded corners */
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1); /* Soft shadow */
+        }
+
+        .comparison-table {
+            border-collapse: separate;
+            border-spacing: 0;
+            text-align: left;
+            font-size: 16px;
+            table-layout: auto; /* Allows table to adjust for columns */
+            width: auto; /* Allows table to exceed container width */
+            min-width: 750px; /* Ensures at least some space for three columns */
+        }
+
+        .comparison-table th, .comparison-table td {
+            border-bottom: 1px solid #e5e7eb;
+            padding: 12px 15px;
+            white-space: nowrap; /* Prevents cell content from wrapping */
+        }
+
+        .comparison-table th {
+            background-color: #edf2f7;
+            font-weight: 600;
+            color: #333;
+            text-align: center;
+        }
+
+        .comparison-table tr:nth-child(even) {
+            background-color: #f9fafb;
+        }
+
+        .comparison-table tr:hover {
+            background-color: #eef2f6;
+        }
+
+        .comparison-table th:first-child, .comparison-table td:first-child {
+            position: sticky;
+            left: 0;
+            background: #edf2f7;
+            z-index: 1;
+            border-right: 1px solid #e5e7eb;
+        }
+
+        .remove-city-button {
+            background-color: rgba(255, 92, 92, 0.2); /* Light red background */
+            border: none;
+            color: #ff5c5c; /* Red "X" color */
+            font-size: 14px;
+            cursor: pointer;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: background-color 0.3s ease;
+            outline: none;
+            padding: 0;
+        }
+
+        .remove-city-button:hover {
+            background-color: rgba(255, 92, 92, 0.4); /* Darker red on hover */
+        }
+
+        .loader {
+            border: 5px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 5px solid #3498db;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            display: none;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Weather App</h1>
+        <div class="city-inputs-container" id="cityInputsContainer">
+            <div class="city-input-wrapper">
+                <input type="text" placeholder="Enter city name" class="city-input" />
+                <button onclick="addCityInput()" id="addCityButton">+</button>
+            </div>
+        </div>
+        <button onclick="compareWeather()">Get Weather</button>
+        <button id="toggleTemp" class="toggle-button" onclick="toggleTemperature()">Toggle °C/°F</button>
+        <div class="loader" id="loader"></div>
+        <button onclick="openForecast()">Forecast</button>
+
+
+        <div class="comparison-table-container">
+            <table id="comparisonTable" class="comparison-table">
+                <!-- Table headers and data will be dynamically inserted here -->
+            </table>
+        </div>
+    </div>
+
+    <script>
+        const apiKey = "7bdbcbfa0878cd55b8dc6b899a654c91";
+        let isCelsius = true;
+
+        const weatherConditions = {
+            '200': { emoji: '⛈️', description: 'Thunderstorm with light rain' },
+            '201': { emoji: '⛈️', description: 'Thunderstorm with rain' },
+            '202': { emoji: '⛈️', description: 'Thunderstorm with heavy rain' },
+            '210': { emoji: '🌩️', description: 'Light thunderstorm' },
+            '211': { emoji: '🌩️', description: 'Thunderstorm' },
+            '212': { emoji: '🌩️', description: 'Heavy thunderstorm' },
+            '221': { emoji: '🌩️', description: 'Ragged thunderstorm' },
+            '230': { emoji: '⛈️', description: 'Thunderstorm with light drizzle' },
+            '231': { emoji: '⛈️', description: 'Thunderstorm with drizzle' },
+            '232': { emoji: '⛈️', description: 'Thunderstorm with heavy drizzle' },
+            '300': { emoji: '🌦️', description: 'Light intensity drizzle' },
+            '301': { emoji: '🌦️', description: 'Drizzle' },
+            '302': { emoji: '🌦️', description: 'Heavy intensity drizzle' },
+            '500': { emoji: '🌧️', description: 'Light rain' },
+            '501': { emoji: '🌧️', description: 'Moderate rain' },
+            '502': { emoji: '🌧️', description: 'Heavy intensity rain' },
+            '511': { emoji: '🌧️', description: 'Freezing rain' },
+            '600': { emoji: '❄️', description: 'Light snow' },
+            '601': { emoji: '❄️', description: 'Snow' },
+            '602': { emoji: '❄️', description: 'Heavy snow' },
+            '701': { emoji: '🌫️', description: 'Mist' },
+            '800': { emoji: '☀️', description: 'Clear sky' },
+            '801': { emoji: '🌤️', description: 'Few clouds: 11-25%' },
+            '802': { emoji: '⛅', description: 'Scattered clouds: 25-50%' },
+            '803': { emoji: '🌥️', description: 'Broken clouds: 51-84%' },
+            '804': { emoji: '☁️', description: 'Overcast clouds: 85-100%' }
+        };
+
+        function addCityInput() {
+            const container = document.getElementById('cityInputsContainer');
+            const wrapper = document.createElement('div');
+            wrapper.classList.add('city-input-wrapper');
+            wrapper.innerHTML = `
+                <input type="text" placeholder="Enter city name" class="city-input" />
+                <button class="remove-city-button" onclick="removeCityInput(this)">×</button>
+            `;
+            container.insertBefore(wrapper, document.getElementById('addCityButton').parentElement);
+        }
+
+        function removeCityInput(button) {
+            const cityName = button.previousElementSibling.value;
+            button.parentElement.remove();
+            removeCityData(cityName); // Remove the city from the table
+            updateTable(); // Refresh the table
+        }
+
+        function removeCityData(cityName) {
+            const headers = document.querySelectorAll('#comparisonTable th');
+            headers.forEach((header, index) => {
+                if (header.innerText.toLowerCase().includes(cityName.toLowerCase())) {
+                    header.remove();
+                    const rows = document.querySelectorAll('#comparisonTable tbody tr');
+                    rows.forEach(row => row.deleteCell(index));
+                }
+            });
+        }
+
+        function updateTable() {
+            const cityInputs = document.querySelectorAll('.city-input');
+            const cities = Array.from(cityInputs).map(input => input.value.trim()).filter(city => city !== "");
+
+            // Clear the table content before reloading data
+            const table = document.getElementById('comparisonTable');
+            table.innerHTML = '';
+
+            // If no cities are left, do nothing
+            if (cities.length === 0) {
+                return;
+            }
+
+            // Fetch and display weather data for each remaining city
+            cities.forEach(city => getWeather(city));
+        }
+
+        function compareWeather() {
+            const cityInputs = document.querySelectorAll('.city-input');
+            const cities = Array.from(cityInputs).map(input => input.value.trim()).filter(city => city !== "");
+
+            if (cities.length === 0) {
+                alert('Please enter at least one city.');
+                return;
+            }
+
+            document.getElementById('comparisonTable').innerHTML = '';
+            document.getElementById('loader').style.display = 'block';
+
+            cities.forEach(city => getWeather(city));
+        }
+
+        function getWeather(city) {
+            const units = isCelsius ? 'metric' : 'imperial';
+            const url = `https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${apiKey}&units=${units}`;
+
+            fetch(url)
+                .then(response => response.json())
+                .then(data => displayWeather(data, city))
+                .catch(error => {
+                    console.error('Error fetching data:', error);
+                })
+                .finally(() => document.getElementById('loader').style.display = 'none');
+        }
+
+        function displayWeather(data, city) {
+            if (data.cod !== 200) {
+                return;
+            }
+
+            const formattedCity = city
+                .trim()
+                .split(' ')
+                .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+                .join(' ');
+
+            const weatherId = data.weather[0].id.toString();
+            const weatherCondition = weatherConditions[weatherId] || { emoji: '❓', description: 'No description available.' };
+            const tempUnit = isCelsius ? '°C' : '°F';
+            const date = new Date().toLocaleString();
+
+            const table = document.getElementById('comparisonTable');
+            if (!table.innerHTML) {
+                table.innerHTML = `
+                    <thead>
+                        <tr>
+                            <th>Parameter</th>
+                            <th>${formattedCity}, ${data.sys.country} <span class="emoji">${weatherCondition.emoji}</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Date and Time</td><td>${date}</td></tr>
+                        <tr><td>Temperature</td><td>${data.main.temp} ${tempUnit} (Feels like: ${data.main.feels_like} ${tempUnit})</td></tr>
+                        <tr><td>Weather</td><td>${weatherCondition.description}</td></tr>
+                        <tr><td>Pressure</td><td>${data.main.pressure} hPa</td></tr>
+                        <tr><td>Humidity</td><td>${data.main.humidity}%</td></tr>
+                        <tr><td>Wind Speed</td><td>${data.wind.speed} ${isCelsius ? 'm/s' : 'mph'}</td></tr>
+                        <tr><td>Cloudiness</td><td>${data.clouds.all}%</td></tr>
+                    </tbody>`;
+            } else {
+                const headers = table.querySelector('thead tr');
+                headers.innerHTML += `<th>${formattedCity}, ${data.sys.country} <span class="emoji">${weatherCondition.emoji}</span></th>`;
+
+                const rows = table.querySelectorAll('tbody tr');
+                rows[0].innerHTML += `<td>${date}</td>`;
+                rows[1].innerHTML += `<td>${data.main.temp} ${tempUnit} (Feels like: ${data.main.feels_like} ${tempUnit})</td>`;
+                rows[2].innerHTML += `<td>${weatherCondition.description}</td>`;
+                rows[3].innerHTML += `<td>${data.main.pressure} hPa</td>`;
+                rows[4].innerHTML += `<td>${data.main.humidity}%</td>`;
+                rows[5].innerHTML += `<td>${data.wind.speed} ${isCelsius ? 'm/s' : 'mph'}</td>`;
+                rows[6].innerHTML += `<td>${data.clouds.all}%</td>`;
+            }
+        }
+
+        function toggleTemperature() {
+            isCelsius = !isCelsius;
+            compareWeather();
+        }
+        function openForecast() {
+            const cityInputs = document.querySelectorAll('.city-input');
+            const cities = Array.from(cityInputs).map(input => input.value.trim()).filter(city => city !== "");
+            if (cities.length === 0) {
+                alert('Please enter at least one city.');
+                return;
+            }
+            window.open(`forecast.html?cities=${encodeURIComponent(cities.join(','))}`, '_blank');
+        }
+
+
+    </script>
+
+</body>
+</html>

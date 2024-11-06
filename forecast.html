@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weather Forecast</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.4.0/jspdf.umd.min.js"></script>
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #89f7fe, #66a6ff);
+            color: #333;
+            overflow: auto;
+        }
+
+        .container {
+            text-align: center;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+            width: 95%;
+            max-width: 800px;
+            margin: 20px 0;
+        }
+
+        h1 {
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        .accordion {
+            margin: 10px 0;
+            border: none;
+            outline: none;
+            background: #66a6ff;
+            color: white;
+            cursor: pointer;
+            padding: 10px;
+            font-size: 16px;
+            border-radius: 5px;
+            transition: background 0.3s ease;
+        }
+
+        .accordion.active, .accordion:hover {
+            background: #89f7fe;
+        }
+
+        .panel {
+            display: none;
+            overflow: hidden;
+        }
+
+        .loader {
+            border: 5px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 5px solid #3498db;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            display: none;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        #exportBtn {
+            margin-top: 20px;
+            padding: 10px 20px;
+            font-size: 16px;
+            background: #ff6f61;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+
+        #exportBtn:hover {
+            background: #ff3b2f;
+        }
+    </style>
+</head>
+<body>
+    <h1>Weather Forecast</h1>
+    <div id="forecastContainer" class="container">
+        <button class="accordion">Wind Speed (m/s)</button>
+        <div class="panel chart-container">
+            <canvas id="windSpeedChart"></canvas>
+        </div>
+        <button class="accordion">Humidity (%)</button>
+        <div class="panel chart-container">
+            <canvas id="humidityChart"></canvas>
+        </div>
+        <button class="accordion">Pressure (hPa)</button>
+        <div class="panel chart-container">
+            <canvas id="pressureChart"></canvas>
+        </div>
+        <button class="accordion">Cloudiness (%)</button>
+        <div class="panel chart-container">
+            <canvas id="cloudinessChart"></canvas>
+        </div>
+        <button class="accordion">Temperature (°C)</button>
+        <div class="panel chart-container">
+            <canvas id="temperatureChart"></canvas>
+        </div>
+    </div>
+    <button id="exportBtn">Export to PDF</button>
+    <div class="loader" id="loader"></div>
+
+    <script>
+        const apiKey = "7bdbcbfa0878cd55b8dc6b899a654c91";
+        const cities = new URLSearchParams(window.location.search).get('cities')?.split(',') || ['Toronto', 'Vancouver', 'Montreal'];
+        const loader = document.getElementById('loader');
+        const windSpeedDataSets = [];
+        const humidityDataSets = [];
+        const pressureDataSets = [];
+        const cloudinessDataSets = [];
+        const temperatureDataSets = [];
+        let labels = [];
+
+        async function fetchForecast(city) {
+            loader.style.display = 'block';
+            const url = `https://api.openweathermap.org/data/2.5/forecast?q=${city}&units=metric&appid=${apiKey}`;
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                if (data.cod === "200") {
+                    processForecastData(data, city);
+                } else {
+                    console.error(`Error fetching data for ${city}: ${data.message}`);
+                }
+            } catch (error) {
+                console.error(`Error fetching forecast data for ${city}:`, error);
+            } finally {
+                loader.style.display = 'none';
+            }
+        }
+
+        function processForecastData(data, city) {
+            if (!data || !data.list) {
+                console.error(`No data found for ${city}`);
+                return;
+            }
+
+            if (!labels.length) {
+                labels = data.list.map(entry => new Date(entry.dt * 1000).toLocaleString());
+            }
+
+            const windSpeeds = data.list.map(entry => entry.wind.speed);
+            const humidities = data.list.map(entry => entry.main.humidity);
+            const pressures = data.list.map(entry => entry.main.pressure);
+            const cloudiness = data.list.map(entry => entry.clouds.all);
+            const temperatures = data.list.map(entry => entry.main.temp);
+
+            const color = getRandomColor();
+            const cityName = city.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
+
+            windSpeedDataSets.push({
+                label: `${cityName} Wind Speed (m/s)`,
+                data: windSpeeds,
+                borderColor: color,
+                backgroundColor: color.replace('1)', '0.2)'),
+                fill: true,
+            });
+
+            humidityDataSets.push({
+                label: `${cityName} Humidity (%)`,
+                data: humidities,
+                borderColor: color,
+                backgroundColor: color.replace('1)', '0.2)'),
+                fill: true,
+            });
+
+            pressureDataSets.push({
+                label: `${cityName} Pressure (hPa)`,
+                data: pressures,
+                borderColor: color,
+                backgroundColor: color.replace('1)', '0.2)'),
+                fill: true,
+            });
+
+            cloudinessDataSets.push({
+                label: `${cityName} Cloudiness (%)`,
+                data: cloudiness,
+                borderColor: color,
+                backgroundColor: color.replace('1)', '0.2)'),
+                fill: true,
+            });
+
+            temperatureDataSets.push({
+                label: `${cityName} Temperature (°C)`,
+                data: temperatures,
+                borderColor: color,
+                backgroundColor: color.replace('1)', '0.2)'),
+                fill: true,
+            });
+
+            updateCharts();
+        }
+
+        function updateCharts() {
+            updateChart('windSpeedChart', 'line', labels, windSpeedDataSets);
+            updateChart('humidityChart', 'line', labels, humidityDataSets);
+            updateChart('pressureChart', 'line', labels, pressureDataSets, { min: 950, max: 1050 });
+            updateChart('cloudinessChart', 'line', labels, cloudinessDataSets);
+            updateChart('temperatureChart', 'line', labels, temperatureDataSets);
+        }
+
+        function updateChart(chartId, type, labels, datasets, yAxisOptions = {}) {
+            const ctx = document.getElementById(chartId).getContext('2d');
+            new Chart(ctx, {
+                type: type,
+                data: {
+                    labels: labels,
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            ticks: {
+                                maxRotation: 45,
+                                minRotation: 45,
+                            }
+                        },
+                        y: {
+                            beginAtZero: chartId !== 'pressureChart',
+                            ...yAxisOptions,
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: true
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                        },
+                    },
+                }
+            });
+        }
+
+        function getRandomColor() {
+            const r = Math.floor(Math.random() * 255);
+            const g = Math.floor(Math.random() * 255);
+            const b = Math.floor(Math.random() * 255);
+            return `rgba(${r}, ${g}, ${b}, 1)`;
+        }
+
+        document.querySelectorAll('.accordion').forEach(button => {
+            button.addEventListener('click', function () {
+                this.classList.toggle('active');
+                const panel = this.nextElementSibling;
+                panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
+            });
+        });
+
+        document.getElementById('exportBtn').addEventListener('click', async () => {
+            const element = document.body; // Capture the entire body
+            const canvas = await html2canvas(element, { scale: 2 });
+            const imgData = canvas.toDataURL('image/png');
+
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const imgProps = pdf.getImageProperties(imgData);
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+
+            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+            pdf.save('forecast.pdf');
+        });
+
+        // Fetch forecasts for all cities listed
+        cities.forEach(city => fetchForecast(city));
+    </script>
+</body>
+</html>
